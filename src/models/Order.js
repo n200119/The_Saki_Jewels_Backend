@@ -1,24 +1,11 @@
 import mongoose from "mongoose";
 
 const orderItemSchema = new mongoose.Schema({
-  product: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Product",
-    required: true
-  },
-
+  product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
   name: String,
   image: String,
-
-  price: {
-    type: Number,
-    required: true
-  },
-
-  quantity: {
-    type: Number,
-    required: true
-  }
+  price: { type: Number, required: true },
+  quantity: { type: Number, required: true }
 });
 
 const addressSchema = new mongoose.Schema({
@@ -32,36 +19,33 @@ const addressSchema = new mongoose.Schema({
   country: String
 });
 
-const orderSchema = new mongoose.Schema(
-  {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true
-    },
+const orderSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  items: [orderItemSchema],
+  shippingAddress: addressSchema,
+  totalAmount: { type: Number, required: true },
 
-    items: [orderItemSchema],
-
-    shippingAddress: addressSchema,
-
-    totalAmount: {
-      type: Number,
-      required: true
-    },
-
-    status: {
-      type: String,
-      enum: ["PENDING", "ACCEPTED", "REJECTED", "DELIVERED"],
-      default: "PENDING"
-    },
-
-    adminRemark: {
-      type: String
-    }
+  status: {
+    type: String,
+    enum: ["PENDING", "ACCEPTED", "REJECTED", "DELIVERED", "REFUND_PROCESSING", "REFUNDED"],
+    default: "PENDING"
   },
-  {
-    timestamps: true
+
+  adminRemark: String,
+
+  paymentInfo: {
+    paymentId: String,
+    razorpayOrderId: String,
+    status: String
+  },
+
+  refundInfo: {
+    refundId: String,
+    amount: Number,
+    status: String,
+    refundedAt: Date
   }
-);
+
+}, { timestamps: true });
 
 export default mongoose.model("Order", orderSchema);
