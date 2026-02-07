@@ -4,72 +4,83 @@ import Product from "../models/Product.js";
 import crypto from "crypto";
 import razorpayInstance from "../utils/razorpay.js";
 
+/* ---------------- HELPER: CALCULATE ORDER SAFELY ---------------- */
+const buildOrderItems = async (cart) => {
+  let totalAmount = 0;
 
-/**
- * PLACE ORDER (USER)
- */
+  const orderItems = await Promise.all(
+    cart.map(async (item) => {
+      const product = await Product.findById(item.product._id);
+
+      if (!product || product.isActive === false) {
+        throw new Error(`Product unavailable: ${item.product._id}`);
+      }
+
+      if (item.quantity > product.stock) {
+          throw new Error(`Only ${product.stock} left for ${product.name}`);
+        }
+
+
+      const price = product.finalPrice;
+      totalAmount += price * item.quantity;
+
+      return {
+        product: product._id,
+        name: product.name,
+        image: product.images?.[0]?.url || "",
+        price,
+        quantity: item.quantity
+      };
+    })
+  );
+
+  return { orderItems, totalAmount };
+};
+
+/* ---------------- PLACE ORDER (COD / MANUAL) ---------------- */
 export const placeOrder = async (req, res) => {
   try {
     const { addressId } = req.body;
+    if (!addressId) return res.status(400).json({ message: "Address is required" });
 
     const user = await User.findById(req.user._id).populate("cart.product");
-
-    if (!user.cart.length) {
+    if (!user || !user.cart.length)
       return res.status(400).json({ message: "Cart is empty" });
-    }
 
     const address = user.addresses.id(addressId);
-    if (!address) {
-      return res.status(400).json({ message: "Invalid address" });
-    }
+    if (!address) return res.status(400).json({ message: "Invalid address" });
 
-    let totalAmount = 0;
-    const orderItems = user.cart.map((item) => {
-      totalAmount += item.product.finalPrice * item.quantity;
-
-      return {
-        product: item.product._id,
-        name: item.product.name,
-        image: item.product.images?.[0]?.url,
-        price: item.product.finalPrice,
-        quantity: item.quantity
-      };
-    });
+    const { orderItems, totalAmount } = await buildOrderItems(user.cart);
 
     const order = await Order.create({
       user: user._id,
       items: orderItems,
       shippingAddress: address,
-      totalAmount
+      totalAmount,
+      paymentInfo: { status: "COD" }
     });
 
-    // Clear cart after order
     user.cart = [];
     await user.save();
 
-    res.status(201).json({
-      message: "Order placed successfully",
-      order
-    });
+    res.status(201).json({ message: "Order placed successfully", order });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message || "Order failed" });
   }
 };
 
+/* ---------------- GET USER ORDERS ---------------- */
 export const getUserOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id })
-      .sort({ createdAt: -1 });
-
+    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
     res.status(200).json(orders);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-/**
- * ADMIN – Get All Orders
- */
+/* ---------------- ADMIN – GET ALL ORDERS ---------------- */
 export const getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
@@ -82,12 +93,11 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
-/**
- * ADMIN – Update Order Status
- */
+/* ---------------- ADMIN – UPDATE ORDER STATUS ---------------- */
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status, adminRemark } = req.body;
+    if (!status) return res.status(400).json({ message: "Status is required" });
 
     const order = await Order.findByIdAndUpdate(
       req.params.id,
@@ -95,29 +105,28 @@ export const updateOrderStatus = async (req, res) => {
       { new: true }
     );
 
-    res.status(200).json({
-      message: "Order updated",
-      order
-    });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    res.status(200).json({ message: "Order updated", order });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-
 /* ---------------- CREATE RAZORPAY ORDER ---------------- */
 export const createPaymentOrder = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate("cart.product");
-    if (!user.cart.length) return res.status(400).json({ message: "Cart is empty" });
+    if (!user || !user.cart.length)
+      return res.status(400).json({ message: "Cart is empty" });
 
-    let totalAmount = 0;
-    user.cart.forEach(item => totalAmount += item.product.finalPrice * item.quantity);
+    const { totalAmount } = await buildOrderItems(user.cart);
 
     const razorpayOrder = await razorpayInstance.orders.create({
       amount: totalAmount * 100,
       currency: "INR",
-      receipt: `receipt_${Date.now()}`
+      receipt: `receipt_${Date.now()}`,
+      notes: { userId: user._id.toString() }
     });
 
     res.json({
@@ -125,7 +134,6 @@ export const createPaymentOrder = async (req, res) => {
       amount: totalAmount,
       key: process.env.RAZORPAY_KEY_ID
     });
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -135,6 +143,9 @@ export const createPaymentOrder = async (req, res) => {
 export const verifyPaymentAndPlaceOrder = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, addressId } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature)
+      return res.status(400).json({ message: "Payment details missing" });
 
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
@@ -146,20 +157,13 @@ export const verifyPaymentAndPlaceOrder = async (req, res) => {
       return res.status(400).json({ message: "Payment verification failed" });
 
     const user = await User.findById(req.user._id).populate("cart.product");
+    if (!user || !user.cart.length)
+      return res.status(400).json({ message: "Cart is empty" });
+
     const address = user.addresses.id(addressId);
     if (!address) return res.status(400).json({ message: "Invalid address" });
 
-    let totalAmount = 0;
-    const orderItems = user.cart.map(item => {
-      totalAmount += item.product.finalPrice * item.quantity;
-      return {
-        product: item.product._id,
-        name: item.product.name,
-        image: item.product.images?.[0]?.url,
-        price: item.product.finalPrice,
-        quantity: item.quantity
-      };
-    });
+    const { orderItems, totalAmount } = await buildOrderItems(user.cart);
 
     const order = await Order.create({
       user: user._id,
@@ -177,7 +181,6 @@ export const verifyPaymentAndPlaceOrder = async (req, res) => {
     await user.save();
 
     res.status(201).json({ message: "Order placed successfully", order });
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -185,23 +188,21 @@ export const verifyPaymentAndPlaceOrder = async (req, res) => {
 
 /* ---------------- HELPER: PROCESS REFUND ---------------- */
 const processRefund = async (order) => {
-  try {
-    const refund = await razorpayInstance.payments.refund(order.paymentInfo.paymentId, {
-      amount: order.totalAmount * 100
-    });
+  if (order.status === "REFUNDED") return;
 
-    order.status = "REFUNDED";
-    order.refundInfo = {
-      refundId: refund.id,
-      amount: refund.amount / 100,
-      status: refund.status,
-      refundedAt: new Date()
-    };
+  const refund = await razorpayInstance.payments.refund(order.paymentInfo.paymentId, {
+    amount: order.totalAmount * 100
+  });
 
-    await order.save();
-  } catch (err) {
-    throw new Error("Refund failed from Razorpay");
-  }
+  order.status = "REFUNDED";
+  order.refundInfo = {
+    refundId: refund.id,
+    amount: refund.amount / 100,
+    status: refund.status,
+    refundedAt: new Date()
+  };
+
+  await order.save();
 };
 
 /* ---------------- USER CANCEL ORDER ---------------- */
@@ -225,7 +226,6 @@ export const cancelOrderByUser = async (req, res) => {
     await processRefund(order);
 
     res.json({ message: "Order cancelled and refund processed", order });
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -249,7 +249,6 @@ export const refundOrderByAdmin = async (req, res) => {
     await processRefund(order);
 
     res.json({ message: "Refund processed successfully", order });
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

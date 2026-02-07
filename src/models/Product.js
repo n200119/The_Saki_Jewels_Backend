@@ -1,5 +1,10 @@
 import mongoose from "mongoose";
 
+const imageSchema = new mongoose.Schema({
+  url: { type: String, required: true },
+  public_id: { type: String, required: true }
+}, { _id: true });
+
 const productSchema = new mongoose.Schema(
   {
     name: {
@@ -19,30 +24,31 @@ const productSchema = new mongoose.Schema(
       required: true
     },
 
-    images: [
-      {
-        url: { type: String, required: true },
-        public_id: { type: String }
-      }
-    ],
+    images: [imageSchema], // 🔥 better structure
 
     rate: {
       type: Number,
-      required: true   // actual price before discount
+      required: true,
+      min: 0
     },
 
     discountRate: {
       type: Number,
-      default: 0        // percentage (0–100)
+      default: 0,
+      min: 0,
+      max: 100
     },
 
     finalPrice: {
-      type: Number
+      type: Number,
+      min: 0
     },
 
     rating: {
       type: Number,
-      default: 0
+      default: 0,
+      min: 0,
+      max: 5
     },
 
     ratingCount: {
@@ -52,7 +58,8 @@ const productSchema = new mongoose.Schema(
 
     stock: {
       type: Number,
-      default: 0
+      default: 0,
+      min: 0
     },
 
     isActive: {
@@ -71,17 +78,35 @@ const productSchema = new mongoose.Schema(
 );
 
 /**
- * Auto-calculate final price
+ * 🔥 Auto-calculate final price BEFORE SAVE
  */
 productSchema.pre("save", function () {
-  if (this.discountRate > 0) {
-    this.finalPrice =
-      this.rate - (this.rate * this.discountRate) / 100;
-  } else {
-    this.finalPrice = this.rate;
+  if (this.isModified("rate") || this.isModified("discountRate")) {
+    if (this.discountRate > 0) {
+      this.finalPrice = this.rate - (this.rate * this.discountRate) / 100;
+    } else {
+      this.finalPrice = this.rate;
+    }
   }
+  
+});
 
-  console.log("Product pre-save middleware hit");
+/**
+ * 🔥 Auto-calculate final price on UPDATE (findOneAndUpdate)
+ */
+productSchema.pre("findOneAndUpdate", function () {
+  const update = this.getUpdate();
+
+  const rate = update.rate ?? update.$set?.rate;
+  const discount = update.discountRate ?? update.$set?.discountRate;
+
+  if (rate !== undefined || discount !== undefined) {
+    const finalRate = rate ?? this._update.rate;
+    const finalDiscount = discount ?? this._update.discountRate ?? 0;
+
+    update.finalPrice = finalRate - (finalRate * finalDiscount) / 100;
+    this.setUpdate(update);
+  }
 });
 
 

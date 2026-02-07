@@ -1,0 +1,257 @@
+{
+  "info": {
+    "name": "Saki Jewels API",
+    "_postman_id": "a1b2c3d4-ecom-saki-jewels",
+    "description": "Complete Ecommerce API Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "token", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "productId", "value": "" },
+    { "key": "addressId", "value": "" },
+    { "key": "orderId", "value": "" }
+  ],
+  "item": [
+
+    {
+      "name": "🔐 AUTH",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mahesh\",\n  \"email\": \"mahesh@test.com\",\n  \"phone\": \"9999999999\",\n  \"password\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"mahesh@test.com\",\n  \"password\": \"123456\"\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🏠 ADDRESS",
+      "item": [
+        {
+          "name": "Add Address",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Mahesh\",\n  \"phone\": \"9999999999\",\n  \"house\": \"12-34\",\n  \"street\": \"Main Road\",\n  \"city\": \"Hyderabad\",\n  \"state\": \"Telangana\",\n  \"pincode\": \"500001\",\n  \"country\": \"India\",\n  \"isDefault\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Addresses",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/addresses"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "💎 PRODUCTS (USER)",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": { "method": "GET", "url": "{{baseUrl}}/products" }
+        },
+        {
+          "name": "Get Product By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/{{productId}}"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🛠 PRODUCTS (ADMIN)",
+      "item": [
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/products",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "Gold Ring" },
+                { "key": "type", "value": "RING" },
+                { "key": "description", "value": "22K Gold Ring" },
+                { "key": "rate", "value": "50000" },
+                { "key": "discountRate", "value": "10" },
+                { "key": "stock", "value": "5" },
+                { "key": "images", "type": "file", "src": "" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🛒 CART",
+      "item": [
+        {
+          "name": "Add to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/cart/add",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/cart"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "❤️ WISHLIST",
+      "item": [
+        {
+          "name": "Add to Wishlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/wishlist/add",
+            "body": { "mode": "raw", "raw": "{ \"productId\": \"{{productId}}\" }" }
+          }
+        },
+        {
+          "name": "Get Wishlist",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/wishlist"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "💳 ORDERS + PAYMENT",
+      "item": [
+        {
+          "name": "Create Razorpay Order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/orders/create-payment-order"
+          }
+        },
+        {
+          "name": "Verify Payment & Place Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/orders/verify-payment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razorpay_order_id\": \"\",\n  \"razorpay_payment_id\": \"\",\n  \"razorpay_signature\": \"\",\n  \"addressId\": \"{{addressId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/orders/my-orders"
+          }
+        },
+        {
+          "name": "Cancel Order (Refund)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/orders/{{orderId}}/cancel"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "👑 ADMIN ORDERS",
+      "item": [
+        {
+          "name": "Get All Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/orders/{{orderId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"DELIVERED\", \"adminRemark\": \"Delivered successfully\" }"
+            }
+          }
+        },
+        {
+          "name": "Admin Refund",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/orders/{{orderId}}/refund"
+          }
+        }
+      ]
+    }
+  ]
+}
